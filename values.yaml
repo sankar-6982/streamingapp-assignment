@@ -1,0 +1,30 @@
+images:
+  auth: 386315605351.dkr.ecr.ap-south-1.amazonaws.com/streamingapp-auth:latest
+  streaming: 386315605351.dkr.ecr.ap-south-1.amazonaws.com/streamingapp-streaming:latest
+  admin: 386315605351.dkr.ecr.ap-south-1.amazonaws.com/streamingapp-admin:latest
+  chat: 386315605351.dkr.ecr.ap-south-1.amazonaws.com/streamingapp-chat:latest
+  frontend: 386315605351.dkr.ecr.ap-south-1.amazonaws.com/streamingapp-frontend:latest
+
+mongo:
+  uri: mongodb://mongo:27017/streaming
+
+frontend:
+  service:
+    port: 80
+    targetPort: 80
+
+auth:
+  service:
+    port: 3001
+
+streaming:
+  service:
+    port: 3002
+
+admin:
+  service:
+    port: 3003
+
+chat:
+  service:
+    port: 3004
