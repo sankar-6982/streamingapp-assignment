@@ -1,0 +1,139 @@
+pipeline {
+    agent any
+
+    environment {
+
+        AWS_REGION = 'ap-south-1'
+        ACCOUNT_ID = '386315605351'
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+        AUTH_IMAGE = 'streamingapp-auth'
+        ADMIN_IMAGE = 'streamingapp-admin'
+        CHAT_IMAGE = 'streamingapp-chat'
+        STREAMING_IMAGE = 'streamingapp-streaming'
+        FRONTEND_IMAGE = 'streamingapp-frontend'
+    }
+
+    stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Clone Repository') {
+            steps {
+                git 'https://github.com/sankar-6982/StreamingApp.git'
+            }
+        }
+
+        stage('Verify Docker') {
+            steps {
+                sh 'docker --version'
+                sh 'docker compose version'
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                sh '''
+                docker compose build
+                '''
+            }
+        }
+
+        stage('Login to Amazon ECR') {
+            steps {
+                sh '''
+                aws ecr get-login-password --region $AWS_REGION | \
+                docker login --username AWS \
+                --password-stdin \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                '''
+            }
+        }
+
+        stage('Tag Docker Images') {
+            steps {
+                sh '''
+
+                docker tag streamingapp-auth:latest \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$AUTH_IMAGE:$IMAGE_TAG
+
+                docker tag streamingapp-admin:latest \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ADMIN_IMAGE:$IMAGE_TAG
+
+                docker tag streamingapp-chat:latest \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$CHAT_IMAGE:$IMAGE_TAG
+
+                docker tag streamingapp-streaming:latest \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$STREAMING_IMAGE:$IMAGE_TAG
+
+                docker tag streamingapp-frontend:latest \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$FRONTEND_IMAGE:$IMAGE_TAG
+
+                '''
+            }
+        }
+
+        stage('Push Docker Images') {
+            steps {
+                sh '''
+
+                docker push \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$AUTH_IMAGE:$IMAGE_TAG
+
+                docker push \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ADMIN_IMAGE:$IMAGE_TAG
+
+                docker push \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$CHAT_IMAGE:$IMAGE_TAG
+
+                docker push \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$STREAMING_IMAGE:$IMAGE_TAG
+
+                docker push \
+                $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$FRONTEND_IMAGE:$IMAGE_TAG
+
+                '''
+            }
+        }
+
+        stage('Update Kubeconfig') {
+            steps {
+                sh '''
+                aws eks update-kubeconfig \
+                --region $AWS_REGION \
+                --name streaming-cluster
+                '''
+            }
+        }
+
+        stage('Deploy to EKS using Helm') {
+            steps {
+                sh '''
+                helm upgrade --install streaming-app ./helm \
+                --set image.tag=$IMAGE_TAG
+                '''
+            }
+        }
+
+    }
+
+    post {
+
+        success {
+            echo 'CI/CD Pipeline executed successfully!'
+        }
+
+        failure {
+            echo 'CI/CD Pipeline failed!'
+        }
+
+        always {
+            sh 'docker system prune -af || true'
+        }
+    }
+}
